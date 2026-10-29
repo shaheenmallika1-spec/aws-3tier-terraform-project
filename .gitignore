@@ -21,3 +21,7 @@ secrets/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Terraform saved plan files
+tfplan
+tfplan.*

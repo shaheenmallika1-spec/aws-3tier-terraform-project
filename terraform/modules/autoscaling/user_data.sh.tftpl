@@ -1,0 +1,97 @@
+#!/bin/bash
+set -eu
+exec > /var/log/3tier-bootstrap.log 2>&1
+
+dnf install -y awscli-2 python3 python3-pip
+
+mkdir -p /opt/3tier-app
+cd /opt/3tier-app
+
+python3 -m venv venv
+/opt/3tier-app/venv/bin/pip install Flask==3.1.3 PyMySQL==1.2.3
+
+cat > /opt/3tier-app/app.py <<'PYTHON'
+import os
+import pymysql
+from flask import Flask, jsonify
+
+app = Flask(__name__)
+
+def get_db_connection():
+    return pymysql.connect(
+        host=os.environ["DB_HOST"],
+        user=os.environ["DB_USER"],
+        password=os.environ["DB_PASSWORD"],
+        database=os.environ.get("DB_NAME", "appdb"),
+        port=int(os.environ.get("DB_PORT", "3306")),
+        connect_timeout=5
+    )
+
+@app.route("/")
+def home():
+    return jsonify({
+        "application": "AWS 3-Tier Application",
+        "status": "running"
+    })
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "healthy"})
+
+@app.route("/db-health")
+def db_health():
+    try:
+        connection = get_db_connection()
+        connection.close()
+        return jsonify({"database": "connected"})
+    except Exception:
+        app.logger.exception("Database connection failed")
+        return jsonify({"database": "connection_failed"}), 503
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
+PYTHON
+
+SECRET_JSON=$(aws secretsmanager get-secret-value \
+  --secret-id '${secret_arn}' \
+  --query SecretString \
+  --output text \
+  --region '${aws_region}')
+
+DB_USER=$(printf '%s' "$SECRET_JSON" | python3 -c \
+  'import json,sys; print(json.load(sys.stdin)["username"])')
+
+DB_PASSWORD=$(printf '%s' "$SECRET_JSON" | python3 -c \
+  'import json,sys; print(json.load(sys.stdin)["password"])')
+
+printf 'DB_HOST=%s\nDB_PORT=%s\nDB_NAME=%s\nDB_USER=%s\nDB_PASSWORD=%s\n' \
+  '${db_endpoint}' '${db_port}' '${db_name}' "$DB_USER" "$DB_PASSWORD" \
+  > /opt/3tier-app/.env
+
+chmod 600 /opt/3tier-app/.env
+chown -R ec2-user:ec2-user /opt/3tier-app
+
+unset SECRET_JSON DB_USER DB_PASSWORD
+
+cat > /etc/systemd/system/3tier-flask.service <<'SERVICE'
+[Unit]
+Description=AWS 3-Tier Flask Application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/opt/3tier-app
+EnvironmentFile=/opt/3tier-app/.env
+ExecStart=/opt/3tier-app/venv/bin/python /opt/3tier-app/app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+systemctl daemon-reload
+systemctl enable --now 3tier-flask
+curl --fail http://127.0.0.1:5000/health

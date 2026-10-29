@@ -42,11 +42,13 @@ resource "aws_launch_template" "app" {
 
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh.tftpl", {
-    db_endpoint = var.db_endpoint
-    db_port     = var.db_port
-    db_name     = var.db_name
-    secret_arn  = var.secret_arn
-    aws_region  = var.aws_region
+    db_endpoint  = var.db_endpoint
+    db_port      = var.db_port
+    db_name      = var.db_name
+    secret_arn   = var.secret_arn
+    aws_region   = var.aws_region
+    project_name = var.project_name
+    environment  = var.environment
   }))
 
 

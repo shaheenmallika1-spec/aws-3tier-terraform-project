@@ -118,3 +118,28 @@ resource "aws_iam_instance_profile" "ssm" {
   name = "${var.project_name}-${var.environment}-ec2-ssm-profile"
   role = aws_iam_role.ssm.name
 }
+
+
+resource "aws_iam_role_policy" "cloudwatch_logs" {
+  name = "${var.project_name}-${var.environment}-cloudwatch-logs"
+  role = aws_iam_role.ssm.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = [
+          "arn:aws:logs:*:*:log-group:/aws/ec2/${var.project_name}-${var.environment}/*",
+          "arn:aws:logs:*:*:log-group:/aws/ec2/${var.project_name}-${var.environment}/*:log-stream:*"
+        ]
+      }
+    ]
+  })
+}

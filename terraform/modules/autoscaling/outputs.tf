@@ -1,10 +1,9 @@
-
-variable "aws_region" {
-  description = "AWS region for the application"
-  type        = string
+output "autoscaling_group_name" {
+  description = "Name of the application Auto Scaling group"
+  value       = aws_autoscaling_group.app.name
 }
 
-variable "secret_arn" {
-  description = "ARN of the database credentials secret"
-  type        = string
+output "launch_template_id" {
+  description = "ID of the application launch template"
+  value       = aws_launch_template.app.id
 }

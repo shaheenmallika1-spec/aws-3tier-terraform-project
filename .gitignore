@@ -25,3 +25,6 @@ Thumbs.db
 # Terraform saved plan files
 tfplan
 tfplan.*
+
+# Temporary AWS SSM command payloads
+ssm-command.json
